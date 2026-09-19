@@ -29,18 +29,18 @@ The data is **event-level**, not pre-aggregated. `src/build_kpis.py` aggregates 
 
 | Issue | What was done |
 |---|---|
-| No kill/death column | Kills are **inferred**: a victim dies on the event where their cumulative `hp_dmg` in a round first reaches 100 (verified: 227,762 victim-rounds sum to exactly 100; 7.1 kills/round, 36% headshot kills). The attacker on that event gets the kill. World deaths, suicides and team kills count as deaths but not kills. |
+| No kill/death column | Kills are **inferred**: a victim dies on the event where their cumulative `hp_dmg` in a round first reaches 100 (227,762 of 284,476 victim-rounds sum to exactly 100). This gives 232,987 inferred deaths, of which 230,308 are valid kills (7.0 per round, 36% headshots). The attacker on that event gets the kill. World deaths (1,462), suicides (86) and team kills (1,131) count as deaths but not kills. **Known weakness:** 5,225 victim-rounds (1.8%) receive more than 100 HP of damage, and in many of them the victim appears to keep fighting after the first crossing, so the first crossing is not always the real death (a crude re-run excluding those victim-rounds moves Wilks' Lambda from 0.447 to 0.458). |
 | No shots fired, so no true accuracy | **Substitution:** accuracy = headshot share of kills. |
 | No reaction-time telemetry | **Substitution:** reaction = opening-kill rate (share of rounds where the player got the round's first kill). |
 | Equipment value is per team, not per player | **Substitution:** economy = player-level *loadout value*, the damage-weighted average buy price of the guns the player used. The price table (`src/weapon_prices.py`) is hand-entered from approximate 2017 in-game prices; it is not part of the dataset. |
-| Very few repeat players (median 1 match, only 117 players with 5+) | The unit of analysis is the **player-match row**, not a player career. |
+| Very few repeat players (10,956 players in the analysed table, median 1 match, only 114 with 5+ matches) | The unit of analysis is the **player-match row**, not a player career. |
 | Winner and loser of a match are dependent | Handled in the MANOVA design (section 4.3). |
-| KPIs come from the same match whose result they explain | The win probability is "how likely is a team with this KPI profile to be a winning team", **not a pre-match forecast**. |
+| KPIs come from the same match whose result they explain | Rounds are won by eliminations: the winning team has more kills in 94% of rounds, and K/D alone gives AUC 0.977. The MANOVA and win model therefore describe a largely mechanical relationship. Read Wilks' Lambda as an effect-size description, not as evidence of a hidden "signature", and the win probability as "how likely is a team with this KPI profile to be a winning team", **not a pre-match forecast**. |
 
 ### Sample after filtering
 
 - Player-match rows with at least 10 rounds played: **12,767** (from 1,289 matches; 8 matches of 7-9 rounds and 3 rows with undefined loadout value dropped). Steam IDs are replaced by random pseudonyms (`P00001`, ...) in the published data.
-- Team-matches: 2,578. **Ties** (124 matches, equal rounds won) are kept for PCA and clustering but excluded from MANOVA and the win model, leaving **2,330 team-matches (1,165 winners, 1,165 losers)**. Matches cut short are kept, labelled by round majority. Teams that are not exactly 5 players are kept (team means are taken over the players present).
+- Team-matches: 2,578. **Ties** (124 matches, equal rounds won) are kept for PCA and clustering but excluded from MANOVA and the win model, leaving **2,330 team-matches (1,165 winners, 1,165 losers)**. All 124 ties are genuine 15-15 draws. Only 44 non-tie matches ended without either team reaching 16 rounds; they are kept and labelled by round majority (results are unchanged when restricted to complete matches). Teams that are not exactly 5 players are kept (team means are taken over the players present).
 
 ## 3. KPIs
 
@@ -74,7 +74,7 @@ The six KPIs are z-scored and PCA is run on the correlation matrix.
 
 ### 4.2 K-Means archetypes
 
-K-Means (20 starts, seed 42) on PC1-PC3, evaluated for k = 2 to 8 with silhouette, Davies-Bouldin, elbow and bootstrap stability. **k = 4** was chosen: it gives distinct roles, good stability (bootstrap ARI 0.91) and no cluster below 18%.
+K-Means (20 starts, seed 42) on PC1-PC3, evaluated for k = 2 to 8 with silhouette, Davies-Bouldin, elbow and bootstrap stability. **k = 4** was chosen for interpretability (four distinct roles, no cluster below 18%, stable under resampling with bootstrap ARI 0.91), not because the silhouette favours it.
 
 | Archetype | Share | K/D | Headshot % | ADR | Opening rate | Utility/round | Loadout $ |
 |---|---|---|---|---|---|---|---|
@@ -83,7 +83,7 @@ K-Means (20 starts, seed 42) on PC1-PC3, evaluated for k = 2 to 8 with silhouett
 | Heavy-Weapon Anchor | 29% | 0.85 | 24% | 69 | 0.08 | 0.69 | 2,503 |
 | Budget Headshotter | 28% | 0.71 | 48% | 66 | 0.07 | 0.81 | 1,927 |
 
-**Caveat:** the silhouette score is only about 0.23 at every k. Players form a continuum, so the archetypes are useful *segments*, not naturally separated groups.
+**Caveat:** the silhouette score is only about 0.23 at every k. Players form a continuum, so the archetypes are useful *segments*, not naturally separated groups. An independent check supports this: a structureless Gaussian cloud with the same PC covariance gives a similar silhouette (0.228 at k=4, against 0.233 observed), and the partition is sensitive to preprocessing (agreement ARI 0.72 when K/D is dropped, 0.38 after a Yeo-Johnson transform). Treat the archetypes as a descriptive segmentation.
 
 ![k selection](data/processed/kmeans_k_selection.png)
 
@@ -102,8 +102,9 @@ Unit: one row per (match, team) holding the team's mean KPI vector; ties exclude
 Because a plain independent-groups MANOVA would ignore this dependence, the approved plan is:
 
 - **Primary test, paired within-match Wilks' Lambda.** Take (winner minus loser) KPI differences for each match (n = 1,165) and run a one-sample Hotelling T2, with Lambda = 1/(1 + T2/(n-1)). This needs no Box's M assumption. The p-value is confirmed with a **sign-flip permutation test** (20,000 permutations), which is distribution-free.
-  - T2 = 1,441.3, **Lambda = 0.447**, F(6, 1159) = 239.2, asymptotic p ~ 1e-199, permutation p < 0.0001 (no permuted statistic reached the observed value; the largest was 32.6).
-  - Effect size: **partial eta-squared = 1 - Lambda = 0.55**.
+  - T2 = 1,441.3, **Lambda = 0.447**, F(6, 1159) = 239.2, **permutation p < 0.0001** (no permuted statistic reached the observed value; the largest was 32.6). The asymptotic F-test p-value is deliberately not quoted, because normality fails, including for the paired differences themselves (Mardia kurtosis 124.8 vs 48).
+  - Effect size: **partial eta-squared = 1 - Lambda = 0.55**. In the paired design this is not directly comparable with the independent-groups value below.
+  - Robustness (independent review): Lambda stays between 0.39 and 0.47 for complete matches only (0.448), teams of exactly 5 players (0.421), log(K/D) (0.411), Yeo-Johnson-transformed KPIs (0.393) and 1%-trimmed differences (0.425).
 - **Secondary, spec-style independent-groups MANOVA (statsmodels).** Lambda = 0.474, F(6, 2323) = 429.6, p ~ 0, partial eta-squared = 0.53. Reported for completeness only, because of the violations above.
 
 Follow-up per KPI (paired, Bonferroni over 6): winners beat losers on K/D (d = 1.04), ADR (0.96), loadout value (0.75), opening rate (0.64) and utility (0.59). Headshot % differs only trivially (d = -0.09, winners slightly lower).
