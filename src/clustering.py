@@ -1,7 +1,7 @@
 """Phase 3b: K-Means on the retained PC scores (PC1-PC3, approved), evaluated over a range of k.
 
 Inputs : data/processed/pca_scores.csv, data/processed/player_match_kpis.csv
-Outputs: data/processed/kmeans_k_selection.png
+Outputs: outputs/figures/kmeans_k_selection.png
          data/processed/cluster_labels_k{K}.csv, only when run as `python clustering.py K` (final k).
 Choosing k is a checkpoint decision, so with no argument this script only reports evidence.
 """
@@ -17,6 +17,7 @@ from sklearn.metrics import (adjusted_rand_score, calinski_harabasz_score,
 
 ROOT = Path(__file__).resolve().parents[1]
 PROC = ROOT / "data" / "processed"
+FIG = ROOT / "outputs" / "figures"
 N_PC = 3
 KPIS = ["kd", "hs_pct", "adr", "opening_rate", "utility_pr", "loadout_value"]
 K_RANGE = range(2, 9)
@@ -63,7 +64,7 @@ def name_k4(prof):
 
 
 def main():
-    scores =pd.read_csv(PROC / "pca_scores.csv")
+    scores = pd.read_csv(PROC / "pca_scores.csv")
     kpi = pd.read_csv(PROC / "player_match_kpis.csv")
     assert (scores.file == kpi.file).all() and (scores.player_id == kpi.player_id).all()
     Z = scores[[f"PC{i + 1}" for i in range(N_PC)]].to_numpy()
@@ -101,7 +102,8 @@ def main():
         ax.plot(res.index, res[col], "o-")
         ax.set(xlabel="k", title=title)
     fig.tight_layout()
-    fig.savefig(PROC / "kmeans_k_selection.png", dpi=150)
+    FIG.mkdir(parents=True, exist_ok=True)
+    fig.savefig(FIG / "kmeans_k_selection.png", dpi=150)
 
     for k in (3, 4, 5):
         _, prof = profile(kpi, Z, k)

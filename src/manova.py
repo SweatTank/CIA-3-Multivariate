@@ -17,6 +17,7 @@ from sklearn.preprocessing import PowerTransformer
 
 ROOT = Path(__file__).resolve().parents[1]
 PROC = ROOT / "data" / "processed"
+FIG, TAB = ROOT / "outputs" / "figures", ROOT / "outputs" / "tables"
 KPIS = ["kd", "hs_pct", "adr", "opening_rate", "utility_pr", "loadout_value"]
 
 
@@ -97,11 +98,12 @@ def check():
     print("univariate excess kurtosis:", t[KPIS].kurt().round(2).to_dict())
 
     report("RAW team-mean KPIs", X, y)
-    qq_plot(X, y, PROC / "mvn_qq_raw.png", "Raw team-mean KPIs")
+    FIG.mkdir(parents=True, exist_ok=True)
+    qq_plot(X, y, FIG / "mvn_qq_raw.png", "Raw team-mean KPIs")
 
     Xt = PowerTransformer(method="yeo-johnson").fit_transform(X)
     report("YEO-JOHNSON transformed team-mean KPIs (option, for comparison)", Xt, y)
-    qq_plot(Xt, y, PROC / "mvn_qq_yeojohnson.png", "Yeo-Johnson transformed team-mean KPIs")
+    qq_plot(Xt, y, FIG / "mvn_qq_yeojohnson.png", "Yeo-Johnson transformed team-mean KPIs")
 
     # Independence: winner and loser of the same match are not independent observations.
     w = t[t.team_won == 1].set_index("file")[KPIS]
@@ -136,7 +138,7 @@ def paired_manova(t, n_perm=20000, seed=42):
 
     print("\n=== PRIMARY: paired within-match MANOVA (Wilks' Lambda) ===")
     print(f"pairs n={n}, p={p}; Hotelling T2={T2:.1f}; Wilks' Lambda={lam:.4f}; F({p},{n - p})={F:.1f}; "
-          f"asymptotic p={p_asym:.3g}")
+          f"asymptotic F p={p_asym:.3g} (not reliable: normality fails; use the permutation p)")
     print(f"sign-flip permutation p (B={n_perm}) = {p_perm:.2g}  (smallest possible {1 / (1 + n_perm):.2g}); "
           f"max permuted T2 = {T2b.max():.1f}")
     print(f"effect size: partial eta^2 = 1 - Lambda = {1 - lam:.3f}")
@@ -151,7 +153,8 @@ def paired_manova(t, n_perm=20000, seed=42):
     uni["std_discriminant_weight"] = disc / np.abs(disc).sum()
     print("\nPer-KPI follow-up (Bonferroni over 6 KPIs) and standardised discriminant weights:")
     print(uni.round(4).to_string())
-    uni.to_csv(PROC / "manova_paired_followup.csv")
+    TAB.mkdir(parents=True, exist_ok=True)
+    uni.to_csv(TAB / "manova_paired_followup.csv")
     return lam
 
 

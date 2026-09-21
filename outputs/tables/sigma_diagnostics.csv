@@ -1,0 +1,8 @@
+,value
+positive_definite (Cholesky succeeds),True
+det(S),590.279506148896
+det(R),0.25814578782908776
+min eigenvalue of R,0.24730488534722805
+max eigenvalue of R,2.2999080490552393
+condition number of R,9.29988926755756
+rank(S),6

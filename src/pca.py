@@ -2,8 +2,8 @@
 
 Inputs : data/processed/player_match_kpis.csv (all rows, ties included)
 Outputs: data/processed/pca_scores.csv    (all 6 PC scores per player-match row)
-         data/processed/pca_loadings.csv  (loadings, eigenvalues, explained variance)
-         data/processed/scree_plot.png
+         outputs/tables/pca_loadings.csv  (loadings, eigenvalues, explained variance)
+         outputs/figures/scree_plot.png
 The number of components to retain is NOT decided here; this script reports the evidence for it.
 """
 from pathlib import Path
@@ -17,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 
 ROOT = Path(__file__).resolve().parents[1]
 PROC = ROOT / "data" / "processed"
+FIG, TAB = ROOT / "outputs" / "figures", ROOT / "outputs" / "tables"
 KPIS = ["kd", "hs_pct", "adr", "opening_rate", "utility_pr", "loadout_value"]
 
 
@@ -76,8 +77,10 @@ def main():
 
     scores = pd.DataFrame(pca.transform(X), columns=names)
     out = pd.concat([df[["file", "player_id"]].reset_index(drop=True), scores], axis=1)
+    FIG.mkdir(parents=True, exist_ok=True)
+    TAB.mkdir(parents=True, exist_ok=True)
     out.to_csv(PROC / "pca_scores.csv", index=False)
-    pd.concat([summary.T, loadings]).to_csv(PROC / "pca_loadings.csv")
+    pd.concat([summary.T, loadings]).to_csv(TAB / "pca_loadings.csv")
 
     fig, ax = plt.subplots(figsize=(6, 4))
     x = np.arange(1, len(eig) + 1)
@@ -87,8 +90,8 @@ def main():
     ax.set(xlabel="Principal component", ylabel="Eigenvalue", title="Scree plot", xticks=x)
     ax.legend()
     fig.tight_layout()
-    fig.savefig(PROC / "scree_plot.png", dpi=150)
-    print(f"\nsaved outputs to {PROC}")
+    fig.savefig(FIG / "scree_plot.png", dpi=150)
+    print(f"\nsaved scores to {PROC}; figure and table to {ROOT / 'outputs'}")
 
 
 if __name__ == "__main__":

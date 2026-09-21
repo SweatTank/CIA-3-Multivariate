@@ -1,8 +1,8 @@
 """Phase 3d: bivariate normal density of each archetype over kill-rate (K/D) vs accuracy (headshot %).
 
 Inputs : data/processed/player_match_kpis.csv, data/processed/cluster_labels_k4.csv
-Outputs: data/processed/archetype_bivariate_density.png
-         data/processed/archetype_bivariate_params.csv  (fitted mean vector, covariance, correlation)
+Outputs: outputs/figures/archetype_bivariate_density.png
+         outputs/tables/archetype_bivariate_params.csv  (fitted mean vector, covariance, correlation)
 
 Design: 2x2 small multiples (one panel per archetype) with all players as muted grey context. Four
 categorical hues fail the all-pairs colour-separation floor (orange vs yellow), so identity is carried by
@@ -18,6 +18,7 @@ from scipy.stats import multivariate_normal
 
 ROOT = Path(__file__).resolve().parents[1]
 PROC = ROOT / "data" / "processed"
+FIG, TAB = ROOT / "outputs" / "figures", ROOT / "outputs" / "tables"
 X, Y = "kd", "hs_pct"
 X_LABEL, Y_LABEL = "Kill rate (K/D)", "Accuracy (headshot kill share)"
 ORDER = ["Star Fragger", "Utility Support", "Heavy-Weapon Anchor", "Budget Headshotter"]
@@ -95,9 +96,11 @@ def main():
     rows = [{"archetype": g, "mean_kd": m[0], "mean_hs": m[1], "var_kd": c[0, 0], "var_hs": c[1, 1],
              "cov": c[0, 1], "corr": c[0, 1] / np.sqrt(c[0, 0] * c[1, 1])} for g, (m, c) in gauss.items()]
     params = pd.DataFrame(rows).set_index("archetype").loc[ORDER]
-    params.to_csv(PROC / "archetype_bivariate_params.csv")
+    FIG.mkdir(parents=True, exist_ok=True)
+    TAB.mkdir(parents=True, exist_ok=True)
+    params.to_csv(TAB / "archetype_bivariate_params.csv")
     print(params.round(4).to_string())
-    plot_density(df, gauss, PROC / "archetype_bivariate_density.png")
+    plot_density(df, gauss, FIG / "archetype_bivariate_density.png")
     print("saved archetype_bivariate_density.png")
 
 
