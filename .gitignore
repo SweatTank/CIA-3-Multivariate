@@ -1,0 +1,9 @@
+﻿data/raw/
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+.streamlit/secrets.toml
+submission/
+updated_rubrics.md
+CLAUDE.md
