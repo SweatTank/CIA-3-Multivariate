@@ -6,7 +6,7 @@ Domain: Data Science / Analytics x E-Gaming (CS:GO)
 **Live dashboard:** https://cia-3-multivariate-3uu8xfiopaykb7zyxjemur.streamlit.app/
 (Free Streamlit Community Cloud. If the app has been idle it may show a "wake up" button; click it and wait a few seconds.)
 
-![Archetype densities](data/processed/archetype_bivariate_density.png)
+![Archetype densities](outputs/figures/archetype_bivariate_density.png)
 
 ## 1. Problem statement
 
@@ -57,6 +57,27 @@ Rounds played = last minus first round in which the player appears. Player rank 
 
 ## 4. Methods and results
 
+![Methodology flowchart](outputs/figures/flowchart.png)
+
+### 4.0 Exploratory analysis (`src/eda.py`)
+
+The data matrix is X in R^(n x p) with n = 12,767 player-match rows and p = 6 KPIs, with no missing values after filtering. Full tables are in `outputs/tables/` (mean vector, sample covariance S, correlation R).
+
+| KPI | Mean (x-bar) | SD | Skewness |
+|---|---|---|---|
+| K/D | 1.073 | 0.618 | 3.56 |
+| Headshot share | 0.362 | 0.152 | 0.31 |
+| ADR | 79.3 | 23.2 | 0.56 |
+| Opening-kill rate | 0.102 | 0.076 | 1.00 |
+| Utility / round | 1.043 | 0.615 | 0.50 |
+| Loadout value ($) | 2,285.8 | 468.8 | 0.38 |
+
+**Is the sample covariance usable?** Yes: S is positive definite (Cholesky succeeds), rank 6, det(R) = 0.258, smallest eigenvalue of R = 0.247, condition number 9.3. There is no singularity or severe multicollinearity; the strongest correlation is K/D with ADR (r = 0.72). K/D is heavily right-skewed (skew 3.6, max 14), which is why multivariate normality later fails.
+
+![Correlation heatmap](outputs/figures/correlation_heatmap.png)
+
+*Correlation matrix R (standardised covariance) of the six KPIs. Red = positive, blue = negative. K/D, ADR and opening-kill rate form one correlated block; headshot share and loadout value are negatively related (r = -0.26).*
+
 ### 4.1 PCA
 
 The six KPIs are z-scored and PCA is run on the correlation matrix.
@@ -70,7 +91,11 @@ The six KPIs are z-scored and PCA is run on the correlation matrix.
 | PC2 | 1.28 | 21.4% | headshot % .76, utility .49, loadout -.65 | Precision vs weapon tier (the "economy" axis) |
 | PC3 | 0.95 | 15.8% | utility .75, headshot % -.47, opening -.38 | Utility / support |
 
-![Scree plot](data/processed/scree_plot.png)
+![Scree plot](outputs/figures/scree_plot.png)
+
+![PCA biplot](outputs/figures/pca_biplot.png)
+
+*Biplot: each cell counts player-match rows in the PC1-PC2 plane; arrows show KPI loading directions. ADR, K/D and opening-kill rate point along PC1 (aggression / impact); headshot share and loadout value pull PC2 in opposite directions.*
 
 ### 4.2 K-Means archetypes
 
@@ -85,7 +110,7 @@ K-Means (20 starts, seed 42) on PC1-PC3, evaluated for k = 2 to 8 with silhouett
 
 **Caveat:** the silhouette score is only about 0.23 at every k. Players form a continuum, so the archetypes are useful *segments*, not naturally separated groups. An independent check supports this: a structureless Gaussian cloud with the same PC covariance gives a similar silhouette (0.228 at k=4, against 0.233 observed), and the partition is sensitive to preprocessing (agreement ARI 0.72 when K/D is dropped, 0.38 after a Yeo-Johnson transform). Treat the archetypes as a descriptive segmentation.
 
-![k selection](data/processed/kmeans_k_selection.png)
+![k selection](outputs/figures/kmeans_k_selection.png)
 
 ### 4.3 MANOVA (Wilks' Lambda)
 
@@ -150,6 +175,10 @@ streamlit run app.py
 
 The processed data and fitted model needed by the app are committed under `data/processed/`.
 
+### Run it in a GitHub Codespace
+
+The repo includes a dev container (`.devcontainer/devcontainer.json`, Python 3.12). On GitHub choose **Code > Codespaces > Create codespace on main**. It installs `requirements.txt` and starts the dashboard on port 8501. To share it, open the **Ports** tab, right-click port 8501 and set **Port Visibility > Public**; the forwarded URL then works for anyone while the Codespace is running. The always-on version is the Streamlit Cloud link at the top of this README.
+
 ### Rebuild everything from the raw data
 
 1. Download the Kaggle archive (free account) and extract it into `data/raw/` (needs `mm_master_demos.csv` and `mm_grenades_demos.csv`; `data/raw/` is gitignored).
@@ -157,6 +186,7 @@ The processed data and fitted model needed by the app are committed under `data/
 
 ```bash
 python src/build_kpis.py       # event logs -> player_match_kpis.csv (with win/loss labels)
+python src/eda.py              # mean vector, S, R, Sigma diagnostics, heatmap, biplot
 python src/pca.py              # PCA, scree plot, loadings, scores
 python src/clustering.py       # k = 2..8 evidence (silhouette, stability)
 python src/clustering.py 4     # final k = 4 labels with archetype names
@@ -164,21 +194,46 @@ python src/manova.py check     # MVN (Mardia), Box's M, dependence checks
 python src/manova.py run       # paired Wilks' Lambda + two-group MANOVA
 python src/visualize.py        # bivariate density figure
 python src/model.py            # fit and validate win model, save artifacts
+python src/flowchart.py        # methodology flowchart (PNG and PDF)
 ```
+
+`notebooks/analysis_walkthrough.ipynb` walks through the analysis with outputs (`pip install jupyter` to run it).
 
 ## 8. Repository layout
 
 ```
 app.py                     Streamlit dashboard
 requirements.txt
+.devcontainer/             GitHub Codespace configuration
 src/build_kpis.py          KPI engineering and win/loss labels
 src/weapon_prices.py       approximate weapon price table
+src/eda.py                 mean vector, covariance, correlation, Sigma diagnostics, heatmap, biplot
 src/pca.py                 PCA
 src/clustering.py          K-Means
 src/manova.py              assumption checks and MANOVA
 src/visualize.py           bivariate normal density plot
 src/model.py               fitted scoring pipeline used by the app
-data/processed/            KPI table, PCA/cluster outputs, figures, model artifacts
+src/flowchart.py           methodology flowchart
+notebooks/                 analysis walkthrough notebook (with outputs)
+data/processed/            KPI table, PCA scores, cluster labels, fitted model artifacts
+outputs/figures/           all figures (PNG/PDF)
+outputs/tables/            mean vector, covariance, correlation, loadings, MANOVA follow-up tables
 ```
 
 Note that `python src/model.py` reads `data/processed/cluster_labels_k4.csv`, so run `clustering.py 4` first.
+
+## 9. AI-assistance disclosure
+
+This project was built with Claude Code (Anthropic) as a coding assistant, under the student's direction. The assistant wrote the code and drafted the analysis; the student made and approved every methodological decision at explicit checkpoints (dataset scope, KPI definitions, kill inference, number of principal components, k, the MANOVA plan given the failed assumptions, the win model, and deployment). The results were independently re-derived from the raw data by a separate review session, which found the numbers reproducible and led to the corrections and caveats noted in this README. The project itself contains no LLM or API calls: it is deterministic Python and statistics only.
+
+## 10. References
+
+- Skihikingkevin. *CS:GO Competitive Matchmaking Data* (Kaggle dataset). https://www.kaggle.com/datasets/skihikingkevin/csgo-matchmaking-damage
+- Johnson, R. A. and Wichern, D. W. (2007). *Applied Multivariate Statistical Analysis*, 6th ed. Pearson. (PCA, MANOVA, Wilks' Lambda, Hotelling's T2, Box's M.)
+- Mardia, K. V. (1970). Measures of multivariate skewness and kurtosis with applications. *Biometrika*, 57(3), 519-530.
+- Box, G. E. P. (1949). A general distribution theory for a class of likelihood criteria. *Biometrika*, 36(3/4), 317-346.
+- Wilks, S. S. (1932). Certain generalizations in the analysis of variance. *Biometrika*, 24(3/4), 471-494.
+- Rousseeuw, P. J. (1987). Silhouettes: a graphical aid to the interpretation and validation of cluster analysis. *Journal of Computational and Applied Mathematics*, 20, 53-65.
+- Horn, J. L. (1965). A rationale and test for the number of factors in factor analysis. *Psychometrika*, 30(2), 179-185. (Parallel analysis.)
+- Pedregosa, F. et al. (2011). Scikit-learn: machine learning in Python. *Journal of Machine Learning Research*, 12, 2825-2830.
+- Seabold, S. and Perktold, J. (2010). Statsmodels: econometric and statistical modeling with Python. *Proceedings of the 9th Python in Science Conference*.
